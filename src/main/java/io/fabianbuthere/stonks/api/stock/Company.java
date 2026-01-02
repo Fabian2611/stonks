@@ -158,10 +158,10 @@ public class Company {
     
     private int soldShares = 0;
     
-    public int calculateStockPrice() {
+    public double calculateStockPrice() {
         double companyValue = calculateCompanyValue();
-        if (shareCount <= 0) return 0;
-        return (int) Math.floor((sharePercentage / 100.0) * companyValue / shareCount);
+        if (shareCount <= 0) return 0.0;
+        return (sharePercentage / 100.0) * companyValue / shareCount;
     }
     
     public double calculateCompanyValue() {

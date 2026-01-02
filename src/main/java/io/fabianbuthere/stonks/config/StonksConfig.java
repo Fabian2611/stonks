@@ -50,6 +50,7 @@ public class StonksConfig {
     
     public static ForgeConfigSpec.DoubleValue WORTH_PER_SQM;
     public static ForgeConfigSpec.DoubleValue LIQUID_CASH_MULTIPLIER;
+    public static ForgeConfigSpec.IntValue STOCK_FREEZE_MINUTES;
 
     static {
         ForgeConfigSpec.Builder commonBuilder = new ForgeConfigSpec.Builder();
@@ -158,6 +159,8 @@ public class StonksConfig {
                 .defineInRange("worth_per_sqm", 100.0, 0.0, Double.MAX_VALUE);
         LIQUID_CASH_MULTIPLIER = commonBuilder.comment("Multiplier for liquid cash when calculating company value")
                 .defineInRange("liquid_cash_multiplier", 0.5, 0.0, 10.0);
+        STOCK_FREEZE_MINUTES = commonBuilder.comment("Duration in minutes that stocks are frozen after purchase (cannot be sold)")
+                .defineInRange("stock_freeze_minutes", 7200, 0, Integer.MAX_VALUE);
         commonBuilder.pop();
 
         commonBuilder.pop();

@@ -113,12 +113,12 @@ public class StockSignManager {
                 if (level.getBlockEntity(pos) instanceof SignBlockEntity sign) {
                     if (index < companies.size()) {
                         Company company = companies.get(index);
-                        int stockPrice = company.calculateStockPrice();
+                        double stockPrice = company.calculateStockPrice();
                         int availableShares = company.getAvailableShares();
                         
                         sign.updateText((signText) -> signText.setMessage(0, Component.literal("§6§l" + company.getSymbol())), true);
                         sign.updateText((signText) -> signText.setMessage(1, Component.literal("§f" + company.getName())), true);
-                        sign.updateText((signText) -> signText.setMessage(2, Component.literal("§a$" + stockPrice)), true);
+                        sign.updateText((signText) -> signText.setMessage(2, Component.literal("§a$" + String.format("%.2f", stockPrice))), true);
                         sign.updateText((signText) -> signText.setMessage(3, Component.literal("§7" + availableShares + " shares")), true);
                     } else {
                         sign.updateText((signText) -> signText.setMessage(0, Component.literal("")), true);

@@ -223,8 +223,8 @@ public class CompanyEditMenu extends ChestMenu {
         display = new CompoundTag();
         lore = new ListTag();
         double companyValue = company.calculateCompanyValue();
-        lore.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal("§7Total: §f" + (int) companyValue))));
-        lore.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal("§7Stock Price: §f" + company.calculateStockPrice()))));
+        lore.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal("§7Total: §f$" + String.format("%.2f", companyValue)))));
+        lore.add(StringTag.valueOf(Component.Serializer.toJson(Component.literal("§7Stock Price: §f$" + String.format("%.2f", company.calculateStockPrice())))));
         display.put("Lore", lore);
         valueItem.getOrCreateTag().put("display", display);
         container.setItem(22, valueItem);

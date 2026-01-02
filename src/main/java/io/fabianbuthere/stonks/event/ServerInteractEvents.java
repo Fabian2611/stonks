@@ -23,7 +23,7 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = Stonks.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ServerInteractEvents {
 
-    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGH)
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         try {
             if (event.getHand() != InteractionHand.MAIN_HAND) return;
@@ -32,12 +32,13 @@ public class ServerInteractEvents {
             if (level == null || level.isClientSide) return;
             BlockPos pos = event.getPos();
             BlockState state = level.getBlockState(pos);
-            
-            // Check if sign was clicked - right-click = accept/cancel
+
+            // Check if sign was clicked - right-click = buy/sell or accept/cancel jobs
             if (state.getBlock() instanceof SignBlock) {
                 if (player instanceof ServerPlayer sp) {
                     handleSignRightClick(sp, pos);
                     event.setCanceled(true);
+                    event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
                     return;
                 }
             }
@@ -102,7 +103,7 @@ public class ServerInteractEvents {
         }
     }
     
-    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGH)
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
         try {
             var player = event.getEntity();
@@ -131,12 +132,18 @@ public class ServerInteractEvents {
         // Check if it's a stock sign first
         var savedData = JobSavedData.get(level);
         if (savedData.stockSignMatrixPos != null) {
+            Stonks.LOGGER.info("Stock sign matrix configured - checking for company at sign {}", signPos);
             var company = io.fabianbuthere.stonks.api.util.StockSignManager.getCompanyAtSign(level, signPos);
             if (company != null) {
+                Stonks.LOGGER.info("Handling stock sign click for company {} at sign {}", company.getSymbol(), signPos);
                 handleStockSignClick(player, signPos);
                 return;
+            } else {
+                Stonks.LOGGER.info("Stock sign matrix configured but no company found at sign {}", signPos);
             }
         }
+
+        Stonks.LOGGER.info("Handling job sign click at {}", signPos);
         
         // Check delivery signs
         BlockPos deliveryCorner = new BlockPos(
@@ -388,7 +395,8 @@ public class ServerInteractEvents {
     }
     
     private static void showStockDetails(ServerPlayer player, io.fabianbuthere.stonks.api.stock.Company company) {
-        int stockPrice = company.calculateStockPrice();
+        double stockPrice = company.calculateStockPrice();
+        int stockPriceCents = (int) Math.round(stockPrice * 100);
         int availableShares = company.getAvailableShares();
         double companyValue = company.calculateCompanyValue();
         
@@ -401,29 +409,31 @@ public class ServerInteractEvents {
         
         player.sendSystemMessage(Component.literal(""));
         player.sendSystemMessage(Component.literal("§eStock Information:"));
-        player.sendSystemMessage(Component.literal("§7Price per share: §a$" + stockPrice));
+        player.sendSystemMessage(Component.literal("§7Price per share: §a" + io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(stockPriceCents)));
         player.sendSystemMessage(Component.literal("§7Available shares: §f" + availableShares + " §7/ §f" + company.getShareCount()));
         player.sendSystemMessage(Component.literal("§7Share percentage: §f" + String.format("%.2f%%", company.getSharePercentage())));
         player.sendSystemMessage(Component.literal(""));
-        player.sendSystemMessage(Component.literal("§eCompany Value: §a$" + (int)companyValue));
+        player.sendSystemMessage(Component.literal("§eCompany Value: §a$" + String.format("%.2f", companyValue)));
         player.sendSystemMessage(Component.literal("§7Property: §f" + company.getTotalPropertySize() + " sqm"));
         
         int[] profits = company.getProfitsLast4Weeks();
         player.sendSystemMessage(Component.literal("§7Weekly Profits (last 4): §f" + profits[0] + " §7/ §f" + profits[1] + " §7/ §f" + profits[2] + " §7/ §f" + profits[3]));
         
         double totalBankBalance = company.getBankAccounts().values().stream().mapToDouble(Double::doubleValue).sum();
-        player.sendSystemMessage(Component.literal("§7Total Bank Balance: §a$" + (int)totalBankBalance));
+        player.sendSystemMessage(Component.literal("§7Total Bank Balance: §a$" + String.format("%.2f", totalBankBalance)));
         player.sendSystemMessage(Component.literal(""));
         player.sendSystemMessage(Component.literal("§7§oRight-click to buy/sell stocks"));
         player.sendSystemMessage(Component.literal("§6━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
     }
     
     private static void handleStockSignClick(ServerPlayer player, BlockPos signPos) {
+        Stonks.LOGGER.info("Handling stock sign click at {}", signPos);
         var level = player.serverLevel();
         var data = JobSavedData.get(level);
         
         var company = io.fabianbuthere.stonks.api.util.StockSignManager.getCompanyAtSign(level, signPos);
         if (company == null) {
+            Stonks.LOGGER.warn("No company found at stock sign {}", signPos);
             return;
         }
         
@@ -431,6 +441,7 @@ public class ServerInteractEvents {
         
         // Check if player is holding a stock certificate to sell
         if (io.fabianbuthere.stonks.api.stock.StockCertificate.isCertificate(heldItem)) {
+            Stonks.LOGGER.info("Player is holding a stock certificate - attempting to sell");
             var stock = io.fabianbuthere.stonks.api.stock.StockCertificate.getStockFromCertificate(heldItem);
             if (stock == null) return;
             
@@ -445,16 +456,30 @@ public class ServerInteractEvents {
             }
             
             if (stock.isFrozen(System.currentTimeMillis())) {
-                long remaining = (stock.getPurchaseTime() + 5L * 24L * 60L * 60L * 1000L) - System.currentTimeMillis();
+                int freezeMinutes = io.fabianbuthere.stonks.config.StonksConfig.STOCK_FREEZE_MINUTES.get();
+                long freezeMillis = freezeMinutes * 60L * 1000L;
+                long remaining = (stock.getPurchaseTime() + freezeMillis) - System.currentTimeMillis();
                 long days = remaining / (24L * 60L * 60L * 1000L);
                 long hours = (remaining % (24L * 60L * 60L * 1000L)) / (60L * 60L * 1000L);
-                player.sendSystemMessage(Component.literal("§cThis stock is still frozen! Time remaining: " + days + "d " + hours + "h"));
+                long minutes = (remaining % (60L * 60L * 1000L)) / (60L * 1000L);
+                
+                String timeStr;
+                if (days > 0) {
+                    timeStr = days + "d " + hours + "h";
+                } else if (hours > 0) {
+                    timeStr = hours + "h " + minutes + "m";
+                } else {
+                    timeStr = minutes + "m";
+                }
+                
+                player.sendSystemMessage(Component.literal("§cThis stock is still frozen! Time remaining: " + timeStr));
                 return;
             }
             
             // Sell the stock
-            int basePrice = company.calculateStockPrice();
-            int actualPrice = stock.getCurrentValue(basePrice, System.currentTimeMillis());
+            double basePrice = company.calculateStockPrice();
+            int basePriceCents = (int) Math.round(basePrice * 100);
+            int actualPrice = stock.getCurrentValue(basePriceCents, System.currentTimeMillis());
             
             company.returnShare();
             data.activeStocks.remove(stock.getStockId());
@@ -467,9 +492,9 @@ public class ServerInteractEvents {
             
             double depreciationPercent = (1.0 - stock.getDepreciationMultiplier(System.currentTimeMillis())) * 100.0;
             if (depreciationPercent > 0.1) {
-                player.sendSystemMessage(Component.literal("§aSold stock for $" + actualPrice + " §7(depreciated " + String.format("%.1f", depreciationPercent) + "%)"));
+                player.sendSystemMessage(Component.literal("§aSold stock for " + io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(actualPrice) + " §7(depreciated " + String.format("%.1f", depreciationPercent) + "%)"));
             } else {
-                player.sendSystemMessage(Component.literal("§aSold stock for $" + actualPrice + "!"));
+                player.sendSystemMessage(Component.literal("§aSold stock for " + io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(actualPrice) + "!"));
             }
             
             // Update signs
@@ -478,15 +503,18 @@ public class ServerInteractEvents {
         }
         
         // Otherwise, buy stock
+        Stonks.LOGGER.info("Checking shares...");
         if (company.getAvailableShares() <= 0) {
             player.sendSystemMessage(Component.literal("§cNo shares available for " + company.getSymbol()));
             return;
         }
+
+        double stockPrice = company.calculateStockPrice();
+        int stockPriceCents = (int) Math.round(stockPrice * 100);
+        Stonks.LOGGER.info("Stock price is ${}", stockPrice);
         
-        int stockPrice = company.calculateStockPrice();
-        
-        if (!io.fabianbuthere.stonks.api.util.PaymentUtil.takeMoneyFromPlayer(player, stockPrice)) {
-            player.sendSystemMessage(Component.literal("§cYou need $" + stockPrice + " to buy this stock!"));
+        if (!io.fabianbuthere.stonks.api.util.PaymentUtil.takeMoneyFromPlayer(player, stockPriceCents)) {
+            player.sendSystemMessage(Component.literal("§cYou need " + io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(stockPriceCents) + " §cto buy this stock!"));
             return;
         }
         
@@ -504,7 +532,7 @@ public class ServerInteractEvents {
             java.util.UUID.randomUUID(),
             company.getSymbol(),
             System.currentTimeMillis(),
-            stockPrice,
+            stockPriceCents,
             player.getUUID()
         );
         
@@ -514,8 +542,20 @@ public class ServerInteractEvents {
         var certificate = io.fabianbuthere.stonks.api.stock.StockCertificate.createCertificate(stock);
         player.addItem(certificate);
         
-        player.sendSystemMessage(Component.literal("§aPurchased 1 share of " + company.getSymbol() + " for $" + stockPrice + "!"));
-        player.sendSystemMessage(Component.literal("§7Stock is frozen for 5 days"));
+        int freezeMinutes = io.fabianbuthere.stonks.config.StonksConfig.STOCK_FREEZE_MINUTES.get();
+        String freezeTimeStr;
+        if (freezeMinutes >= 1440) {
+            int days = freezeMinutes / 1440;
+            freezeTimeStr = days + " day" + (days > 1 ? "s" : "");
+        } else if (freezeMinutes >= 60) {
+            int hours = freezeMinutes / 60;
+            freezeTimeStr = hours + " hour" + (hours > 1 ? "s" : "");
+        } else {
+            freezeTimeStr = freezeMinutes + " minute" + (freezeMinutes > 1 ? "s" : "");
+        }
+        
+        player.sendSystemMessage(Component.literal("§aPurchased 1 share of " + company.getSymbol() + " for " + io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(stockPriceCents) + "!"));
+        player.sendSystemMessage(Component.literal("§7Stock is frozen for " + freezeTimeStr));
         
         // Update signs
         io.fabianbuthere.stonks.api.util.StockSignManager.updateStockSigns(level);

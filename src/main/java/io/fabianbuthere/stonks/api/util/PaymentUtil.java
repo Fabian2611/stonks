@@ -13,11 +13,15 @@ public class PaymentUtil {
     private static final String DIAMOND_COIN = "lightmanscurrency:coin_diamond";
     private static final String EMERALD_COIN = "lightmanscurrency:coin_emerald";
     private static final String GOLD_COIN = "lightmanscurrency:coin_gold";
+    private static final String IRON_COIN = "lightmanscurrency:coin_iron";
+    private static final String COPPER_COIN = "lightmanscurrency:coin_copper";
     
-    private static final int NETHERITE_VALUE = 1000;
-    private static final int DIAMOND_VALUE = 100;
-    private static final int EMERALD_VALUE = 10;
-    private static final int GOLD_VALUE = 1;
+    private static final int NETHERITE_VALUE = 100000; // $1000.00
+    private static final int DIAMOND_VALUE = 10000;    // $100.00
+    private static final int EMERALD_VALUE = 1000;     // $10.00
+    private static final int GOLD_VALUE = 100;         // $1.00
+    private static final int IRON_VALUE = 10;          // $0.10
+    private static final int COPPER_VALUE = 1;         // $0.01
     
     private static Boolean lcCoinsAvailable = null;
     
@@ -45,31 +49,45 @@ public class PaymentUtil {
     private static void awardPaymentLC(ServerPlayer player, int amount) {
         int remaining = amount;
         
-        // Award netherite coins (1000 each)
+        // Award netherite coins (100000 each = $1000.00)
         if (remaining >= NETHERITE_VALUE) {
             int count = remaining / NETHERITE_VALUE;
             remaining %= NETHERITE_VALUE;
             giveCoins(player, NETHERITE_COIN, count);
         }
         
-        // Award diamond coins (100 each)
+        // Award diamond coins (10000 each = $100.00)
         if (remaining >= DIAMOND_VALUE) {
             int count = remaining / DIAMOND_VALUE;
             remaining %= DIAMOND_VALUE;
             giveCoins(player, DIAMOND_COIN, count);
         }
         
-        // Award emerald coins (10 each)
+        // Award emerald coins (1000 each = $10.00)
         if (remaining >= EMERALD_VALUE) {
             int count = remaining / EMERALD_VALUE;
             remaining %= EMERALD_VALUE;
             giveCoins(player, EMERALD_COIN, count);
         }
         
-        // Award gold coins (1 each)
+        // Award gold coins (100 each = $1.00)
         if (remaining >= GOLD_VALUE) {
             int count = remaining / GOLD_VALUE;
+            remaining %= GOLD_VALUE;
             giveCoins(player, GOLD_COIN, count);
+        }
+        
+        // Award iron coins (10 each = $0.10)
+        if (remaining >= IRON_VALUE) {
+            int count = remaining / IRON_VALUE;
+            remaining %= IRON_VALUE;
+            giveCoins(player, IRON_COIN, count);
+        }
+        
+        // Award copper coins (1 each = $0.01)
+        if (remaining >= COPPER_VALUE) {
+            int count = remaining / COPPER_VALUE;
+            giveCoins(player, COPPER_COIN, count);
         }
     }
     
@@ -77,7 +95,7 @@ public class PaymentUtil {
         int remaining = amount;
         
         // Use vanilla items as currency
-        // 1000 = netherite ingot, 100 = diamond, 10 = emerald, 1 = gold ingot
+        // 100000 = netherite ingot, 10000 = diamond, 1000 = emerald, 100 = gold ingot, 10 = iron ingot, 1 = copper ingot
         
         if (remaining >= NETHERITE_VALUE) {
             int count = remaining / NETHERITE_VALUE;
@@ -99,7 +117,19 @@ public class PaymentUtil {
         
         if (remaining >= GOLD_VALUE) {
             int count = remaining / GOLD_VALUE;
+            remaining %= GOLD_VALUE;
             giveVanillaItem(player, Items.GOLD_INGOT, count);
+        }
+        
+        if (remaining >= IRON_VALUE) {
+            int count = remaining / IRON_VALUE;
+            remaining %= IRON_VALUE;
+            giveVanillaItem(player, Items.IRON_INGOT, count);
+        }
+        
+        if (remaining >= COPPER_VALUE) {
+            int count = remaining / COPPER_VALUE;
+            giveVanillaItem(player, Items.COPPER_INGOT, count);
         }
     }
     
@@ -135,13 +165,14 @@ public class PaymentUtil {
     
     /**
      * Formats payment amount with coin breakdown
-     * @param amount Total payment amount
+     * @param amount Total payment amount in cents
      * @return Formatted string showing coin breakdown
      */
     public static String formatPayment(int amount) {
-        if (amount <= 0) return "§e$0";
+        if (amount <= 0) return "§e$0.00";
         
-        StringBuilder result = new StringBuilder("§e$" + amount + " §7(");
+        double dollars = amount / 100.0;
+        StringBuilder result = new StringBuilder(String.format("§e$%.2f §7(", dollars));
         boolean first = true;
         
         int netherite = amount / NETHERITE_VALUE;
@@ -153,7 +184,13 @@ public class PaymentUtil {
         int emerald = amount / EMERALD_VALUE;
         amount %= EMERALD_VALUE;
         
-        int gold = amount;
+        int gold = amount / GOLD_VALUE;
+        amount %= GOLD_VALUE;
+        
+        int iron = amount / IRON_VALUE;
+        amount %= IRON_VALUE;
+        
+        int copper = amount;
         
         if (netherite > 0) {
             result.append("§8").append(netherite).append("N");
@@ -172,6 +209,16 @@ public class PaymentUtil {
         if (gold > 0) {
             if (!first) result.append("§7, ");
             result.append("§6").append(gold).append("G");
+            first = false;
+        }
+        if (iron > 0) {
+            if (!first) result.append("§7, ");
+            result.append("§f").append(iron).append("I");
+            first = false;
+        }
+        if (copper > 0) {
+            if (!first) result.append("§7, ");
+            result.append("§c").append(copper).append("C");
         }
         
         result.append("§7)");
@@ -199,11 +246,15 @@ public class PaymentUtil {
             totalMoney += countCoins(player, DIAMOND_COIN) * DIAMOND_VALUE;
             totalMoney += countCoins(player, EMERALD_COIN) * EMERALD_VALUE;
             totalMoney += countCoins(player, GOLD_COIN) * GOLD_VALUE;
+            totalMoney += countCoins(player, IRON_COIN) * IRON_VALUE;
+            totalMoney += countCoins(player, COPPER_COIN) * COPPER_VALUE;
         } else {
             totalMoney += countItems(player, Items.NETHERITE_INGOT) * NETHERITE_VALUE;
             totalMoney += countItems(player, Items.DIAMOND) * DIAMOND_VALUE;
             totalMoney += countItems(player, Items.EMERALD) * EMERALD_VALUE;
             totalMoney += countItems(player, Items.GOLD_INGOT) * GOLD_VALUE;
+            totalMoney += countItems(player, Items.IRON_INGOT) * IRON_VALUE;
+            totalMoney += countItems(player, Items.COPPER_INGOT) * COPPER_VALUE;
         }
         
         if (totalMoney < amount) {
@@ -213,11 +264,15 @@ public class PaymentUtil {
         // Remove coins/items
         int remaining = amount;
         if (lcCoinsAvailable) {
+            remaining = removeCoins(player, COPPER_COIN, remaining, COPPER_VALUE);
+            remaining = removeCoins(player, IRON_COIN, remaining, IRON_VALUE);
             remaining = removeCoins(player, GOLD_COIN, remaining, GOLD_VALUE);
             remaining = removeCoins(player, EMERALD_COIN, remaining, EMERALD_VALUE);
             remaining = removeCoins(player, DIAMOND_COIN, remaining, DIAMOND_VALUE);
             remaining = removeCoins(player, NETHERITE_COIN, remaining, NETHERITE_VALUE);
         } else {
+            remaining = removeItems(player, Items.COPPER_INGOT, remaining, COPPER_VALUE);
+            remaining = removeItems(player, Items.IRON_INGOT, remaining, IRON_VALUE);
             remaining = removeItems(player, Items.GOLD_INGOT, remaining, GOLD_VALUE);
             remaining = removeItems(player, Items.EMERALD, remaining, EMERALD_VALUE);
             remaining = removeItems(player, Items.DIAMOND, remaining, DIAMOND_VALUE);

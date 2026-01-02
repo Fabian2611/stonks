@@ -40,8 +40,9 @@ public class Stock {
     }
 
     public boolean isFrozen(long currentTime) {
-        long fiveDaysInMillis = 5L * 24L * 60L * 60L * 1000L;
-        return (currentTime - purchaseTime) < fiveDaysInMillis;
+        int freezeMinutes = io.fabianbuthere.stonks.config.StonksConfig.STOCK_FREEZE_MINUTES.get();
+        long freezeMillis = freezeMinutes * 60L * 1000L;
+        return (currentTime - purchaseTime) < freezeMillis;
     }
 
     /**

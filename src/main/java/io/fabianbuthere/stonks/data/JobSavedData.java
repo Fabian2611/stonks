@@ -36,6 +36,7 @@ public class JobSavedData extends SavedData {
         this.stockSignMatrixWidth = 0;
         this.stockSignMatrixHeight = 0;
         this.lastDepreciationTime = System.currentTimeMillis();
+        initializeStockSignMatrixFromConfig();
     }
 
     public JobSavedData(CompoundTag tag) {
@@ -63,6 +64,9 @@ public class JobSavedData extends SavedData {
             stockSignMatrixPos = BlockPos.of(compoundTag.getLong("stockSignMatrixPos"));
             stockSignMatrixWidth = compoundTag.getInt("stockSignMatrixWidth");
             stockSignMatrixHeight = compoundTag.getInt("stockSignMatrixHeight");
+        } else {
+            // Initialize from config if not saved
+            initializeStockSignMatrixFromConfig();
         }
         
         lastDepreciationTime = compoundTag.getLong("lastDepreciationTime");
@@ -498,6 +502,23 @@ public class JobSavedData extends SavedData {
                 double newValue = currentValue * 0.98; // 2% depreciation
                 company.setBankAccountValue(accountName, newValue);
             }
+        }
+    }
+    
+    private void initializeStockSignMatrixFromConfig() {
+        // Only initialize if config has valid coordinates
+        int x = StonksConfig.STOCK_SIGN_X.get();
+        int y = StonksConfig.STOCK_SIGN_Y.get();
+        int z = StonksConfig.STOCK_SIGN_Z.get();
+        int width = StonksConfig.STOCK_SIGN_WIDTH.get();
+        int height = StonksConfig.STOCK_SIGN_HEIGHT.get();
+        
+        // Check if coordinates are set to non-default values
+        if (x != 0 || y != 0 || z != 0) {
+            stockSignMatrixPos = new BlockPos(x, y, z);
+            stockSignMatrixWidth = width;
+            stockSignMatrixHeight = height;
+            this.setDirty();
         }
     }
 }

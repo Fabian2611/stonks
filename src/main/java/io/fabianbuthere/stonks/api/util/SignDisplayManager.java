@@ -228,11 +228,11 @@ public class SignDisplayManager {
                 
                 if (companyIndex < companies.size()) {
                     var company = companies.get(companyIndex);
-                    int stockPrice = company.calculateStockPrice();
+                    double stockPrice = company.calculateStockPrice();
                     
                     sign.updateText((signText) -> signText.setMessage(0, Component.literal("§6" + company.getSymbol())), true);
                     sign.updateText((signText) -> signText.setMessage(1, Component.literal("§f" + company.getName())), true);
-                    sign.updateText((signText) -> signText.setMessage(2, Component.literal("§e$" + stockPrice)), true);
+                    sign.updateText((signText) -> signText.setMessage(2, Component.literal("§e$" + String.format("%.2f", stockPrice))), true);
                     sign.updateText((signText) -> signText.setMessage(3, Component.literal("§7Click to buy")), true);
                     
                     companyIndex++;

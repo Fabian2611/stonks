@@ -47,25 +47,41 @@ public class StockCertificate {
         lore.add(net.minecraft.nbt.StringTag.valueOf(
                 Component.Serializer.toJson(Component.literal("Purchase Date: " + dateStr)
                         .withStyle(ChatFormatting.AQUA))));
+        
+        // Convert cents to dollars for display
+        double purchasePriceDollars = stock.getPurchasePrice() / 100.0;
         lore.add(net.minecraft.nbt.StringTag.valueOf(
-                Component.Serializer.toJson(Component.literal("Purchase Price: $" + stock.getPurchasePrice())
+                Component.Serializer.toJson(Component.literal("Purchase Price: $" + String.format("%.2f", purchasePriceDollars))
                         .withStyle(ChatFormatting.GREEN))));
         
         long timeSincePurchase = System.currentTimeMillis() - stock.getPurchaseTime();
-        long fiveDaysInMillis = 5L * 24L * 60L * 60L * 1000L;
+        long freezeMinutes = io.fabianbuthere.stonks.config.StonksConfig.STOCK_FREEZE_MINUTES.get();
+        long freezeMillis = freezeMinutes * 60L * 1000L;
         
-        if (timeSincePurchase < fiveDaysInMillis) {
-            long remainingMillis = fiveDaysInMillis - timeSincePurchase;
+        if (timeSincePurchase < freezeMillis) {
+            long remainingMillis = freezeMillis - timeSincePurchase;
             long days = remainingMillis / (24L * 60L * 60L * 1000L);
             long hours = (remainingMillis % (24L * 60L * 60L * 1000L)) / (60L * 60L * 1000L);
+            long minutes = (remainingMillis % (60L * 60L * 1000L)) / (60L * 1000L);
             
             lore.add(net.minecraft.nbt.StringTag.valueOf(
                     Component.Serializer.toJson(Component.literal(""))));
             lore.add(net.minecraft.nbt.StringTag.valueOf(
                     Component.Serializer.toJson(Component.literal("FROZEN - Cannot Sell")
                             .withStyle(ChatFormatting.RED, ChatFormatting.BOLD))));
+            
+            // Build time remaining string
+            String timeStr;
+            if (days > 0) {
+                timeStr = days + "d " + hours + "h";
+            } else if (hours > 0) {
+                timeStr = hours + "h " + minutes + "m";
+            } else {
+                timeStr = minutes + "m";
+            }
+            
             lore.add(net.minecraft.nbt.StringTag.valueOf(
-                    Component.Serializer.toJson(Component.literal("Time Remaining: " + days + "d " + hours + "h")
+                    Component.Serializer.toJson(Component.literal("Time Remaining: " + timeStr)
                             .withStyle(ChatFormatting.RED))));
         } else {
             lore.add(net.minecraft.nbt.StringTag.valueOf(
