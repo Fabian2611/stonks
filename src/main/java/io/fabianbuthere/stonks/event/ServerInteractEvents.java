@@ -36,10 +36,12 @@ public class ServerInteractEvents {
             // Check if sign was clicked - right-click = buy/sell or accept/cancel jobs
             if (state.getBlock() instanceof SignBlock) {
                 if (player instanceof ServerPlayer sp) {
-                    handleSignRightClick(sp, pos);
-                    event.setCanceled(true);
-                    event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
-                    return;
+                    boolean handled = handleSignRightClick(sp, pos);
+                    if (handled) {
+                        event.setCanceled(true);
+                        event.setCancellationResult(net.minecraft.world.InteractionResult.CONSUME);
+                        return;
+                    }
                 }
             }
             
@@ -72,7 +74,10 @@ public class ServerInteractEvents {
                     }
                 }
                 if (!opened) {
-                    PickupBarrelMenu.open((net.minecraft.server.level.ServerPlayer) player, -1);
+                    // Check if player has admin mode enabled - if yes, show type selection UI
+                    // Otherwise, show "no valid job" UI
+                    int jobIndexToOpen = data.adminModeEnabled.contains(playerId) ? -1 : -2;
+                    PickupBarrelMenu.open((net.minecraft.server.level.ServerPlayer) player, jobIndexToOpen);
                     event.setCanceled(true);
                     return;
                 } else return;
@@ -93,7 +98,10 @@ public class ServerInteractEvents {
                     }
                 }
                 if (!opened) {
-                    DeliveryBarrelMenu.open((net.minecraft.server.level.ServerPlayer) player, -1);
+                    // Check if player has admin mode enabled - if yes, show type selection UI
+                    // Otherwise, show "no valid job" UI
+                    int jobIndexToOpen = data.adminModeEnabled.contains(playerId) ? -1 : -2;
+                    DeliveryBarrelMenu.open((net.minecraft.server.level.ServerPlayer) player, jobIndexToOpen);
                     event.setCanceled(true);
                     return;
                 } else return;
@@ -115,9 +123,11 @@ public class ServerInteractEvents {
             // Check if sign was clicked - left-click = show details
             if (state.getBlock() instanceof SignBlock) {
                 if (player instanceof ServerPlayer sp) {
-                    handleSignLeftClick(sp, pos);
-                    event.setCanceled(true);
-                    return;
+                    boolean handled = handleSignLeftClick(sp, pos);
+                    if (handled) {
+                        event.setCanceled(true);
+                        return;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -125,7 +135,7 @@ public class ServerInteractEvents {
         }
     }
     
-    private static void handleSignRightClick(ServerPlayer player, BlockPos signPos) {
+    private static boolean handleSignRightClick(ServerPlayer player, BlockPos signPos) {
         var level = player.serverLevel();
         var jobData = JobSavedData.get(level).getJobData();
         
@@ -137,7 +147,7 @@ public class ServerInteractEvents {
             if (company != null) {
                 Stonks.LOGGER.info("Handling stock sign click for company {} at sign {}", company.getSymbol(), signPos);
                 handleStockSignClick(player, signPos);
-                return;
+                return true;
             } else {
                 Stonks.LOGGER.info("Stock sign matrix configured but no company found at sign {}", signPos);
             }
@@ -156,9 +166,11 @@ public class ServerInteractEvents {
         int deliveryHeight = StonksConfig.DELIVERY_SIGN_HEIGHT.get();
         
         Integer jobIndex = getJobIndexFromSign(level, signPos, deliveryCorner, deliveryWidth, deliveryHeight);
-        if (jobIndex != null && jobIndex < jobData.activeJobs.size()) {
-            handleDeliveryJobSign(player, jobIndex, jobData);
-            return;
+        if (jobIndex != null) {
+            if (jobIndex < jobData.activeJobs.size()) {
+                handleDeliveryJobSign(player, jobIndex, jobData);
+            }
+            return true;
         }
         
         // Check transport signs
@@ -172,28 +184,35 @@ public class ServerInteractEvents {
         int transportHeight = StonksConfig.TRANSPORT_SIGN_HEIGHT.get();
         
         jobIndex = getJobIndexFromSign(level, signPos, transportCorner, transportWidth, transportHeight);
-        if (jobIndex != null && jobIndex < jobData.activeTransports.size()) {
-            handleTransportJobSign(player, jobIndex, jobData);
-            return;
+        if (jobIndex != null) {
+            if (jobIndex < jobData.activeTransports.size()) {
+                handleTransportJobSign(player, jobIndex, jobData);
+            }
+            return true;
         }
+        
+        return false;
     }
     
     private static Integer getJobIndexFromSign(net.minecraft.server.level.ServerLevel level, BlockPos signPos, 
                                                 BlockPos cornerPos, int width, int height) {
-        BlockState cornerState = level.getBlockState(cornerPos);
-        if (!(cornerState.getBlock() instanceof SignBlock)) return null;
-        
-        // Determine directions
+        // Determine directions - check the clicked sign or corner to determine orientation
         Direction right;
-        Direction down;
+        Direction down = Direction.DOWN;
         
+        BlockState clickedState = level.getBlockState(signPos);
+        BlockState cornerState = level.getBlockState(cornerPos);
+        
+        // Determine orientation from either the corner or the clicked sign
         if (cornerState.getBlock() instanceof WallSignBlock) {
             Direction facing = cornerState.getValue(BlockStateProperties.HORIZONTAL_FACING);
             right = facing.getClockWise();
-            down = Direction.DOWN;
+        } else if (clickedState.getBlock() instanceof WallSignBlock) {
+            Direction facing = clickedState.getValue(BlockStateProperties.HORIZONTAL_FACING);
+            right = facing.getClockWise();
         } else {
+            // Default to EAST for standing signs
             right = Direction.EAST;
-            down = Direction.DOWN;
         }
         
         // Calculate job index based on position in matrix
@@ -275,7 +294,7 @@ public class ServerInteractEvents {
         }
     }
     
-    private static void handleSignLeftClick(ServerPlayer player, BlockPos signPos) {
+    private static boolean handleSignLeftClick(ServerPlayer player, BlockPos signPos) {
         var level = player.serverLevel();
         var jobData = JobSavedData.get(level).getJobData();
         
@@ -290,9 +309,11 @@ public class ServerInteractEvents {
         int deliveryHeight = StonksConfig.DELIVERY_SIGN_HEIGHT.get();
         
         Integer jobIndex = getJobIndexFromSign(level, signPos, deliveryCorner, deliveryWidth, deliveryHeight);
-        if (jobIndex != null && jobIndex < jobData.activeJobs.size()) {
-            showDeliveryJobDetails(player, jobIndex, jobData);
-            return;
+        if (jobIndex != null) {
+            if (jobIndex < jobData.activeJobs.size()) {
+                showDeliveryJobDetails(player, jobIndex, jobData);
+            }
+            return true;
         }
         
         // Check transport signs
@@ -306,17 +327,21 @@ public class ServerInteractEvents {
         int transportHeight = StonksConfig.TRANSPORT_SIGN_HEIGHT.get();
         
         jobIndex = getJobIndexFromSign(level, signPos, transportCorner, transportWidth, transportHeight);
-        if (jobIndex != null && jobIndex < jobData.activeTransports.size()) {
-            showTransportJobDetails(player, jobIndex, jobData);
-            return;
+        if (jobIndex != null) {
+            if (jobIndex < jobData.activeTransports.size()) {
+                showTransportJobDetails(player, jobIndex, jobData);
+            }
+            return true;
         }
         
         // Check stock signs
         io.fabianbuthere.stonks.api.stock.Company company = io.fabianbuthere.stonks.api.util.StockSignManager.getCompanyAtSign(level, signPos);
         if (company != null) {
             showStockDetails(player, company);
-            return;
+            return true;
         }
+        
+        return false;
     }
     
     private static void showDeliveryJobDetails(ServerPlayer player, int jobIndex, io.fabianbuthere.stonks.api.JobData jobData) {
