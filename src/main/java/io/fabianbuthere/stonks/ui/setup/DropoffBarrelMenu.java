@@ -175,11 +175,12 @@ public class DropoffBarrelMenu extends ChestMenu {
             JobSavedData.get(level).deleteTransportJob(jobIndex);
             JobSavedData.get(level).setDirty();
             
-            // Award payment
-            io.fabianbuthere.stonks.api.util.PaymentUtil.awardPayment(sp, job.payment());
+            // Award payment (convert dollars to cents)
+            int paymentInCents = job.payment() * 100;
+            io.fabianbuthere.stonks.api.util.PaymentUtil.awardPayment(sp, paymentInCents);
             
             sp.sendSystemMessage(Component.literal("§aCompleted transport job #" + jobIndex + " — " + 
-                io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(job.payment())));
+                io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(paymentInCents)));
         }
     }
 

@@ -67,6 +67,36 @@ public class DeliveryBarrelMenu extends ChestMenu {
 
     private void handleUiClick(int slotId, Player player) {
         if (!(player instanceof ServerPlayer sp)) return;
+        
+        // Admin mode: Handle barrel type selection
+        if (jobIndex == -1) {
+            ServerLevel level = (ServerLevel) sp.level();
+            var savedData = JobSavedData.get(level);
+            var pos = sp.blockPosition(); // This isn't perfect, but we'll get the barrel position from the click context
+            
+            if (slotId == 10) {
+                sp.sendSystemMessage(Component.literal("§aSelected: Delivery Barrel"));
+                sp.closeContainer();
+                return;
+            } else if (slotId == 12) {
+                sp.sendSystemMessage(Component.literal("§dSelected: Delivery + Dropoff Barrel"));
+                sp.closeContainer();
+                return;
+            } else if (slotId == 14) {
+                sp.sendSystemMessage(Component.literal("§eSelected: Pickup Barrel"));
+                sp.closeContainer();
+                return;
+            } else if (slotId == 16) {
+                sp.sendSystemMessage(Component.literal("§bSelected: Dropoff Barrel"));
+                sp.closeContainer();
+                return;
+            } else if (slotId == 26) {
+                sp.closeContainer();
+                return;
+            }
+            return;
+        }
+        
         if (slotId == 26) {
             sp.closeContainer();
             return;
@@ -177,11 +207,12 @@ public class DeliveryBarrelMenu extends ChestMenu {
             JobSavedData.get(level).deleteDeliveryJob(jobIndex);
             JobSavedData.get(level).setDirty();
             
-            // Award payment
-            io.fabianbuthere.stonks.api.util.PaymentUtil.awardPayment(sp, job.payment());
+            // Award payment (convert dollars to cents)
+            int paymentInCents = job.payment() * 100;
+            io.fabianbuthere.stonks.api.util.PaymentUtil.awardPayment(sp, paymentInCents);
             
             sp.sendSystemMessage(Component.literal("§aDelivered job #" + jobIndex + " — " + 
-                io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(job.payment())));
+                io.fabianbuthere.stonks.api.util.PaymentUtil.formatPayment(paymentInCents)));
         }
     }
 
@@ -190,6 +221,18 @@ public class DeliveryBarrelMenu extends ChestMenu {
         if (player == null) return;
         ServerLevel level = (ServerLevel) player.level();
         var data = JobSavedData.get(level).getJobData();
+        
+        // Admin mode: Show barrel type selection
+        if (jobIndex == -1) {
+            for (int i = 0; i < 9; i++) ui.setItem(i, ItemStack.EMPTY);
+            UiItems.button(Items.CHEST, "§aDelivery Barrel", 10, ui);
+            UiItems.button(Items.SHULKER_BOX, "§dDelivery + Dropoff", 12, ui);
+            UiItems.button(Items.BARREL, "§ePickup Barrel", 14, ui);
+            UiItems.button(Items.ENDER_CHEST, "§bDropoff Barrel", 16, ui);
+            UiItems.button(Items.BARRIER, "Close", 26, ui);
+            return;
+        }
+        
         boolean canConfirm = false;
         String label = "Confirm Delivery";
         if (jobIndex >= 0 && jobIndex < data.activeJobs.size()) {

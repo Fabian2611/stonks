@@ -72,6 +72,7 @@ public class JobPool {
 
         java.util.Map<String, Integer> aggregate = new java.util.HashMap<>();
         int totalPayment = 0;
+        int item_count = 0;
         
         for (int i = 0; i < parts; i++) {
             DeliveryJobSpecification spec = getRandomDeliveryJobSpecificationValidated();
@@ -81,6 +82,7 @@ public class JobPool {
             }
             
             int count = RandomUniform.between(spec.uMin(), spec.uMax(), spec.step());
+            item_count += count;
             aggregate.merge(spec.item(), count, Integer::sum);
             
             // Calculate payment for this part
@@ -88,6 +90,7 @@ public class JobPool {
             totalPayment += payment;
         }
 
+        totalPayment = totalPayment * (item_count / 320);
         totalPayment = Math.max(Math.min(totalPayment, StonksConfig.MAX_PAYMENT.get()), StonksConfig.MIN_PAYMENT.get());
         
         java.util.List<io.fabianbuthere.stonks.api.DeliveryJobPart> list = new java.util.ArrayList<>();
